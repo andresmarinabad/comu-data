@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: comu
+      POSTGRES_PASSWORD: comu
+      POSTGRES_DB: comu
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U comu -d comu"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:
