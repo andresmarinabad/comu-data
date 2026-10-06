@@ -9,11 +9,26 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./populate.sql:/docker-entrypoint-initdb.d/02-populate.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U comu -d comu"]
       interval: 3s
       timeout: 5s
       retries: 5
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://comu:comu@db:5432/comu
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   pgdata:
