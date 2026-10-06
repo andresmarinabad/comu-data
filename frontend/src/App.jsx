@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
-import { Link, NavLink, Route, Routes } from 'react-router-dom'
-import { deleteRow, getDirectory, getRows, getTables, insertRow, isSupabase, loginAdmin, updateRow } from './data.js'
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { deleteRow, getDirectory, getRows, getTables, insertRow, isSupabase, loginAdmin, loginSite, updateRow } from './data.js'
 
 function Layout({ children }) {
   return <div className="shell"><header className="topbar"><Link to="/" className="brand"><span className="brand-mark">C</span><span>Comunidad<span className="brand-sub"> X Santas</span></span></Link><nav><NavLink end to="/">Inicio</NavLink><NavLink to="/lista">Lista</NavLink><NavLink to="/eventos">Eventos</NavLink><NavLink to="/grupos">Grupos</NavLink><NavLink to="/admin">Admin</NavLink></nav></header>{children}<footer>Comunidad X</footer></div>
@@ -130,6 +130,12 @@ function AgapeEditor({ enabled, onEnabledChange, assignments, onAssignmentsChang
     return spouse ? `${name} (y ${`${spouse.first_name || ''} ${spouse.last_name || ''}`.trim()})` : name
   }
   return <section className="agape-editor"><label className="agape-toggle"><input type="checkbox" checked={enabled} onChange={event => onEnabledChange(event.target.checked)} /><span>Este evento tiene ágape</span></label>{enabled && <div className="agape-editor-content">{loading ? <p className="state">Cargando opciones del ágape…</p> : <>{assignments.map((assignment,index)=><div className="agape-assignment-row" key={index}><label>Persona<select value={assignment.person_id} onChange={event => updateRow(index,'person_id',event.target.value)}><option value="">Selecciona una persona</option>{people.map(person=><option key={person.id} value={person.id}>{personLabel(person)}</option>)}</select></label><label>Tipo de comida<select value={assignment.food_type_id} onChange={event => updateRow(index,'food_type_id',event.target.value)}><option value="">Selecciona comida</option>{foodTypes.map(food=><option key={food.id} value={food.id}>{food.name}</option>)}</select></label><button type="button" className="row-remove" aria-label="Quitar asignación" onClick={()=>onAssignmentsChange(assignments.filter((_,rowIndex)=>rowIndex!==index))}>×</button></div>)}<button type="button" className="button" onClick={()=>onAssignmentsChange([...assignments,{person_id:'',food_type_id:''}])}>＋ Añadir asignación</button><p className="field-help">Si la persona tiene cónyuge registrado, ambos quedarán asignados a la misma comida.</p></>}</div>}</section>
+}
+
+function SitePassword({ onAuthenticated }) {
+  const [password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false)
+  const submit=async event=>{event.preventDefault();setBusy(true);setError('');try{const token=await loginSite(password);sessionStorage.setItem('comu-site-token',token);onAuthenticated(token)}catch(e){setError(e.message)}finally{setBusy(false)}}
+  return <main className="content site-gate"><form className="site-gate-card" onSubmit={submit}><span className="brand-mark">C</span><p className="eyebrow">COMUNIDAD X SANTAS</p><h1>Acceso a la comunidad</h1><p>Introduce la contraseña para continuar.</p><label>Contraseña<input autoFocus type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} /></label>{error&&<p className="error">{error}</p>}<button className="button primary" disabled={busy||!password}>{busy?'Comprobando…':'Entrar'}</button></form></main>
 }
 
 function AdminContent({ token, onLogout }) {
@@ -266,4 +272,10 @@ function Admin() {
   return <main className="content"><div className="modal-backdrop"><form className="modal login-modal" onSubmit={submit}><div className="modal-head"><div><p className="eyebrow">ADMINISTRACIÓN</p><h2>Introduce la contraseña</h2></div></div><label className="login-field">Contraseña<input autoFocus type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} /></label>{error && <p className="error">{error}</p>}<div className="modal-actions"><Link to="/" className="button">Volver al inicio</Link><button className="button primary" disabled={busy || !password}>{busy ? 'Comprobando…' : 'Entrar'}</button></div></form></div></main>
 }
 
-export default function App() { return <Layout><Routes><Route path="/" element={<Home />} /><Route path="/lista" element={<Directory />} /><Route path="/eventos" element={<Events />} /><Route path="/grupos" element={<Groups />} /><Route path="/admin" element={<Admin />} /><Route path="*" element={<Home />} /></Routes>{isSupabase && <div className="config-note">Conectado a Supabase · Las operaciones de administración están protegidas por contraseña.</div>}</Layout> }
+export default function App() {
+  const location=useLocation()
+  const [siteToken,setSiteToken]=useState(()=>{const token=sessionStorage.getItem('comu-site-token');return token&&Number(token.split('.')[0])*1000>Date.now()?token:''})
+  useEffect(()=>{const expire=()=>{sessionStorage.removeItem('comu-site-token');setSiteToken('')};window.addEventListener('comu-site-session-expired',expire);return()=>window.removeEventListener('comu-site-session-expired',expire)},[])
+  const isAdmin=location.pathname.replace(/\/+$/,'')==='/admin'
+  return <Layout>{!isAdmin&&!siteToken?<SitePassword onAuthenticated={setSiteToken}/>:<><Routes><Route path="/" element={<Home />} /><Route path="/lista" element={<Directory />} /><Route path="/eventos" element={<Events />} /><Route path="/grupos" element={<Groups />} /><Route path="/admin" element={<Admin />} /><Route path="*" element={<Home />} /></Routes>{isSupabase && <div className="config-note">Conectado a Supabase · Las operaciones de administración están protegidas por contraseña.</div>}</>}</Layout>
+}

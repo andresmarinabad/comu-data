@@ -16,6 +16,10 @@ async function request(path, options, token) {
   })
   const contentType = response.headers.get('content-type') || ''
   if (!response.ok) {
+    if (response.status === 401 && token && token === getSiteToken()) {
+      sessionStorage.removeItem('comu-site-token')
+      window.dispatchEvent(new Event('comu-site-session-expired'))
+    }
     const body = await response.text()
     if (contentType.includes('application/json')) {
       let error
@@ -52,8 +56,36 @@ export async function loginAdmin(password) {
   return result.token
 }
 
+export async function loginSite(password) {
+  const url = supabase ? '/api/site/session' : `${apiUrl}/site/session`
+  if (!supabase && !apiUrl) throw new Error('Falta configurar VITE_API_URL en frontend/.env.')
+  const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }) })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(result.detail || 'No se pudo validar la contraseña')
+  return result.token
+}
+
+function getSiteToken() {
+  return sessionStorage.getItem('comu-site-token') || ''
+}
+
+async function getSiteRows(table) {
+  const token = getSiteToken()
+  if (supabase) {
+    const response = await fetch(`/api/site/data?table=${encodeURIComponent(table)}`, { headers: { Authorization: `Bearer ${token}` } })
+    const result = await response.json().catch(() => ({}))
+    if (response.status === 401) {
+      sessionStorage.removeItem('comu-site-token')
+      window.dispatchEvent(new Event('comu-site-session-expired'))
+    }
+    if (!response.ok) throw new Error(result.detail || 'No se pudieron cargar los datos')
+    return result
+  }
+  return request(`/public/${encodeURIComponent(table)}`, {}, token)
+}
+
 export async function getDirectory() {
-  if (!supabase) return request('/directory')
+  if (!supabase) return request('/directory', {}, getSiteToken())
   const [personResult, serviceResult, relationResult] = await Promise.all([getRows('persons'), getRows('services'), getRows('person_services')])
   const serviceNames = new Map(serviceResult.rows.map(service => [service.id, service.name]))
   const serviceByPerson = new Map()
@@ -82,13 +114,9 @@ export async function getTables(token) {
 export async function getRows(table, token) {
   if (supabase) {
     if (token) return supabaseAdminRequest(table, token)
-    let query = supabase.from(table).select('*')
-    if (table === 'words') query = query.order('created_at', { ascending: true })
-    const { data, error } = await query.limit(500)
-    if (error) throw error
-    return { rows: data || [], total: data?.length || 0 }
+    return getSiteRows(table)
   }
-  if (!token) return request(`/public/${encodeURIComponent(table)}`)
+  if (!token) return getSiteRows(table)
   return request(`/tables/${encodeURIComponent(table)}`, {}, token)
 }
 

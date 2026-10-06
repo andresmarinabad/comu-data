@@ -14,6 +14,8 @@ from psycopg.types.json import Jsonb
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://comu:comu@localhost:5432/comu")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 SESSION_SECRET = os.environ.get("ADMIN_SESSION_SECRET", "") or ADMIN_PASSWORD
+SITE_PASSWORD = os.environ.get("SITE_PASSWORD", "")
+SITE_SESSION_SECRET = os.environ.get("SITE_SESSION_SECRET", "")
 TABLES = {
     "persons", "services", "person_services", "events", "groups", "group_members",
     "traditio", "words", "current_psalm", "agapes", "agape_food_types", "agape_assignments",
@@ -44,6 +46,37 @@ def checked_table(table: str) -> str:
 def session_token(expires: int) -> str:
     signature = hmac.new(SESSION_SECRET.encode(), str(expires).encode(), hashlib.sha256).hexdigest()
     return f"{expires}.{signature}"
+
+
+def site_session_token(expires: int) -> str:
+    signature = hmac.new(SITE_SESSION_SECRET.encode(), str(expires).encode(), hashlib.sha256).hexdigest()
+    return f"{expires}.{signature}"
+
+
+def require_site_session(authorization: str | None = Header(default=None)):
+    if not authorization or not authorization.startswith("Bearer ") or not SITE_SESSION_SECRET:
+        raise HTTPException(status_code=401, detail="Introduce la contraseña de acceso a la página")
+    try:
+        expires_text, signature = authorization.removeprefix("Bearer ").split(".", 1)
+        expires = int(expires_text)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=401, detail="Sesión de página no válida")
+    expected = site_session_token(expires).split(".", 1)[1]
+    if expires < time.time() or not hmac.compare_digest(signature, expected):
+        raise HTTPException(status_code=401, detail="La sesión de página ha caducado; vuelve a introducir la contraseña")
+
+
+@app.post("/api/site/session")
+def create_site_session(payload: dict[str, str]):
+    if not SITE_PASSWORD or not SITE_SESSION_SECRET:
+        raise HTTPException(status_code=503, detail="Configura SITE_PASSWORD y SITE_SESSION_SECRET en el entorno del backend")
+    if SITE_PASSWORD == ADMIN_PASSWORD:
+        raise HTTPException(status_code=503, detail="SITE_PASSWORD debe ser distinta de ADMIN_PASSWORD")
+    provided = str(payload.get("password", ""))
+    if not hmac.compare_digest(provided.encode(), SITE_PASSWORD.encode()):
+        raise HTTPException(status_code=401, detail="Contraseña incorrecta")
+    expires = int(time.time()) + 8 * 60 * 60
+    return {"token": site_session_token(expires)}
 
 
 def require_admin(authorization: str | None = Header(default=None)):
@@ -77,7 +110,7 @@ def health():
 
 
 @app.get("/api/directory")
-def directory():
+def directory(_: None = Depends(require_site_session)):
     with connect() as conn:
         rows = conn.execute(
             """SELECT p.*, COALESCE(array_agg(s.name ORDER BY s.name) FILTER (WHERE s.id IS NOT NULL), ARRAY[]::text[]) AS services
@@ -90,7 +123,7 @@ def directory():
 
 
 @app.get("/api/public/{table}")
-def get_public_rows(table: str):
+def get_public_rows(table: str, _: None = Depends(require_site_session)):
     public_tables = {"events", "current_psalm", "groups", "traditio", "words", "agapes", "agape_assignments", "agape_food_types"}
     if table not in public_tables:
         raise HTTPException(status_code=404, detail="Tabla pública no encontrada")

@@ -22,6 +22,8 @@ services:
     environment:
       DATABASE_URL: postgresql://comu:comu@db:5432/comu
       CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      SITE_PASSWORD: ${SITE_PASSWORD:-}
+      SITE_SESSION_SECRET: ${SITE_SESSION_SECRET:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-}
     ports:

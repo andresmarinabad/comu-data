@@ -12,11 +12,13 @@ Aplicación web para consultar y administrar la información de Comunidad X Sant
 
 El formulario de administración usa selectores de fecha y hora para campos de fecha. Las tablas internas `agapes` y `agape_assignments` se gestionan desde el formulario de eventos, sin tener que introducir sus IDs manualmente. `agape_food_types` sigue disponible en Admin para mantener las opciones de comida.
 
+Las vistas públicas piden una contraseña de acceso al sitio. `/admin` utiliza su contraseña administrativa independiente y no requiere primero la contraseña del sitio.
+
 ## Desarrollo local
 
 Requisitos: Docker Compose y Nix con flakes habilitados.
 
-1. Copia `.env.example` a `.env`. Cambia `ADMIN_PASSWORD` y `ADMIN_SESSION_SECRET` por valores propios; no uses los valores de ejemplo en un entorno compartido.
+1. Copia `.env.example` a `.env`. Define `SITE_PASSWORD` y `ADMIN_PASSWORD` con contraseñas distintas y cambia ambos secretos de sesión por valores aleatorios propios. No uses los valores de ejemplo en un entorno compartido.
 2. Inicia PostgreSQL y la API:
 
    ```sh
@@ -43,6 +45,8 @@ PostgreSQL ejecuta `init.sql` y `populate.sql` solo al crear por primera vez el 
 
 ### Migraciones
 
+`init.sql` contiene el esquema completo para bases nuevas. Las migraciones repiten intencionadamente algunos cambios para actualizar bases existentes, donde `init.sql` no se vuelve a ejecutar; por eso se conservan.
+
 Para una base creada antes de estas migraciones, aplica los archivos en orden:
 
 ```sh
@@ -59,16 +63,20 @@ En Vercel configura las siguientes variables:
 | Variable | Uso |
 | --- | --- |
 | `VITE_SUPABASE_URL` | URL pública del proyecto Supabase que utiliza el frontend. |
-| `VITE_SUPABASE_ANON_KEY` | Clave pública para las consultas de lectura del frontend. |
+| `VITE_SUPABASE_ANON_KEY` | Clave pública de configuración del cliente Supabase. |
+| `SITE_PASSWORD` | Contraseña de acceso a las vistas del sitio; distinta de la de Admin. |
+| `SITE_SESSION_SECRET` | Secreto privado para firmar las sesiones de acceso al sitio. |
 | `ADMIN_PASSWORD` | Contraseña para acceder a Admin. |
 | `ADMIN_SESSION_SECRET` | Secreto privado para firmar las sesiones de Admin. |
-| `SUPABASE_URL` | URL del proyecto para las funciones de servidor de Admin. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Clave privada que las funciones de servidor usan para las operaciones administrativas. |
+| `SUPABASE_URL` | URL del proyecto para las funciones de servidor de lectura y Admin. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clave privada que las funciones de servidor usan para leer datos protegidos y realizar operaciones administrativas. |
 
 En este modo, elimina `VITE_API_URL`. No pongas `SUPABASE_SERVICE_ROLE_KEY` ni otros secretos en variables `VITE_*`: esas variables se incluyen en el frontend.
 
-El cliente Supabase del frontend usa la clave pública para las lecturas. Configura las políticas y permisos de lectura necesarios para las tablas públicas que aparecen en Inicio, Lista, Eventos y Grupos. Las escrituras de administración pasan por las funciones servidoras protegidas por contraseña y usan la clave de servicio. No concedas escritura anónima a las tablas.
+Las funciones de servidor validan `SITE_PASSWORD` para emitir una sesión de lectura de 8 horas y validan `ADMIN_PASSWORD` para emitir una sesión administrativa distinta. `SITE_PASSWORD` y `ADMIN_PASSWORD` deben tener valores diferentes. Las lecturas del sitio pasan por `/api/site/data` con la sesión del sitio; las escrituras de Admin pasan por funciones protegidas y usan la clave de servicio. La clave `VITE_SUPABASE_ANON_KEY` es pública y no debe considerarse una contraseña.
+
+Para impedir que se pueda saltar la contraseña del sitio consultando Supabase directamente con la clave anónima, revisa las políticas RLS y no concedas lectura anónima a las tablas protegidas. Las lecturas de la aplicación se realizan desde la función de servidor después de validar la sesión del sitio. No concedas escritura anónima.
 
 ## Seguridad
 
-La contraseña de Admin se valida en el servidor. Las sesiones caducan a las 8 horas y el API administrativo exige un token válido. El backend local está pensado para desarrollo; antes de exponerlo a Internet, configura secretos fuertes y revisa qué datos personales del directorio son públicos.
+Las contraseñas del sitio y de Admin se validan en el servidor. Ambas sesiones caducan a las 8 horas; las rutas de datos y el API administrativo exigen el token correspondiente. El backend local está pensado para desarrollo; antes de exponerlo a Internet, configura contraseñas y secretos fuertes y revisa qué datos personales del directorio son accesibles a los usuarios con la contraseña del sitio.
