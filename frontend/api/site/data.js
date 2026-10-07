@@ -3,7 +3,7 @@ import { authorizedSiteRequest } from './_auth.js'
 
 const publicTables = new Set([
   'persons', 'services', 'person_services', 'events', 'groups', 'traditio',
-  'words', 'current_psalm', 'agapes', 'agape_food_types', 'agape_assignments',
+  'group_members', 'words', 'current_psalm', 'agapes', 'agape_food_types', 'agape_assignments',
 ])
 
 export default async function handler(req, res) {

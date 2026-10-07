@@ -97,9 +97,9 @@ function Events() {
 
 function Groups() {
   const [groups,setGroups]=useState([]),[traditios,setTraditios]=useState([]),[peopleById,setPeopleById]=useState({}),[loading,setLoading]=useState(true),[error,setError]=useState('')
-  useEffect(()=>{Promise.all([getRows('groups'),getRows('traditio'),getDirectory()]).then(([groupData,traditioData,directory])=>{setGroups(groupData.rows.sort((a,b)=>a.name.localeCompare(b.name,'es')));setTraditios(traditioData.rows);setPeopleById(Object.fromEntries(directory.rows.map(person=>[person.id,person]))) }).catch(e=>setError(e.message)).finally(()=>setLoading(false))},[])
+  useEffect(()=>{Promise.all([getRows('groups'),getRows('group_members'),getRows('traditio'),getDirectory()]).then(([groupData,memberData,traditioData,directory])=>{const people=Object.fromEntries(directory.rows.map(person=>[person.id,person]));const membersByGroup=new Map();memberData.rows.forEach(link=>{const person=people[link.person_id];if(!person||!isAdultParticipant(person))return;const names=membersByGroup.get(link.group_id)||[];names.push(personFullName(person));membersByGroup.set(link.group_id,names)});setGroups(groupData.rows.sort((a,b)=>a.name.localeCompare(b.name,'es')).map(group=>({...group,members:(membersByGroup.get(group.id)||[]).sort((a,b)=>a.localeCompare(b,'es'))})));setTraditios(traditioData.rows);setPeopleById(people) }).catch(e=>setError(e.message)).finally(()=>setLoading(false))},[])
   const fullName = id => { const person=peopleById[id]; return person ? `${person.first_name||''} ${person.last_name||''}`.trim() : '' }
-  return <main className="content"><section className="hero"><h1>Grupos</h1><p className="intro">Grupos de la comunidad.</p></section>{error&&<p className="error">{error}</p>}{loading?<p className="state">Cargando grupos…</p>:<><section className="group-list">{groups.length?groups.map(group=><article className="info-card" key={group.id}><strong>{group.name}</strong></article>):<p className="state">No hay grupos definidos.</p>}</section><section className="couples-section"><div className="section-head"><div><h2>Parejas</h2></div></div>{traditios.length?<div className="traditio-table-wrap"><table className="traditio-table"><thead><tr><th>Hermanos</th><th>Calles</th></tr></thead><tbody>{traditios.map(row=><tr key={row.id}><td data-label="Hermanos">{[row.person_1_id,row.person_2_id,row.person_3_id].filter(Boolean).map(fullName).filter(Boolean).join(' · ') || '—'}</td><td data-label="Calles">{row.text || '—'}</td></tr>)}</tbody></table></div>:<p className="state">No hay parejas definidas.</p>}</section></>}</main>
+  return <main className="content"><section className="hero"><h1>Grupos</h1><p className="intro">Grupos de la comunidad.</p></section>{error&&<p className="error">{error}</p>}{loading?<p className="state">Cargando grupos…</p>:<><section className="group-list">{groups.length?groups.map(group=><article className="info-card" key={group.id}><strong>{group.name}</strong>{group.members.length>0&&<p>Miembros: {group.members.join(' · ')}</p>}</article>):<p className="state">No hay grupos definidos.</p>}</section><section className="couples-section"><div className="section-head"><div><h2>Parejas</h2></div></div>{traditios.length?<div className="traditio-table-wrap"><table className="traditio-table"><thead><tr><th>Hermanos</th><th>Calles</th></tr></thead><tbody>{traditios.map(row=><tr key={row.id}><td data-label="Hermanos">{[row.person_1_id,row.person_2_id,row.person_3_id].filter(Boolean).map(fullName).filter(Boolean).join(' · ') || '—'}</td><td data-label="Calles">{row.text || '—'}</td></tr>)}</tbody></table></div>:<p className="state">No hay parejas definidas.</p>}</section></>}</main>
 }
 
 function formInputType(field) {
@@ -122,14 +122,29 @@ function formInputValue(field, value) {
   return value
 }
 
+function personFullName(person) {
+  return `${person.first_name || ''} ${person.last_name || ''}`.trim()
+}
+
+const isAdultParticipant = person => !person.parent_id
+
+function PersonAutocomplete({ people, selectedId, onSelect, placeholder = 'Escribe un nombre o apellido' }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const selected = people.find(person => person.id === selectedId)
+  useEffect(() => { if (selected) setQuery(personFullName(selected)) }, [selectedId, people])
+  const matches = query.trim()
+    ? people.filter(person => personFullName(person).toLocaleLowerCase('es').includes(query.trim().toLocaleLowerCase('es'))).slice(0, 8)
+    : []
+  return <div className="person-autocomplete">
+    <input value={query} placeholder={placeholder} autoComplete="off" onFocus={() => setOpen(true)} onBlur={() => setOpen(false)} onChange={event => { setQuery(event.target.value); onSelect(''); setOpen(true) }} />
+    {open && matches.length > 0 && <div className="person-suggestions" role="listbox">{matches.map(person => <button type="button" role="option" key={person.id} onMouseDown={event => event.preventDefault()} onClick={() => { onSelect(person.id); setQuery(personFullName(person)); setOpen(false) }}>{personFullName(person)}</button>)}</div>}
+  </div>
+}
+
 function AgapeEditor({ enabled, onEnabledChange, assignments, onAssignmentsChange, people, foodTypes, loading }) {
   const updateRow = (index, key, value) => onAssignmentsChange(assignments.map((row, rowIndex) => rowIndex === index ? { ...row, [key]: value } : row))
-  const personLabel = person => {
-    const spouse = people.find(item => item.id === person.spouse_id)
-    const name = `${person.first_name || ''} ${person.last_name || ''}`.trim()
-    return spouse ? `${name} (y ${`${spouse.first_name || ''} ${spouse.last_name || ''}`.trim()})` : name
-  }
-  return <section className="agape-editor"><label className="agape-toggle"><input type="checkbox" checked={enabled} onChange={event => onEnabledChange(event.target.checked)} /><span>Este evento tiene ágape</span></label>{enabled && <div className="agape-editor-content">{loading ? <p className="state">Cargando opciones del ágape…</p> : <>{assignments.map((assignment,index)=><div className="agape-assignment-row" key={index}><label>Persona<select value={assignment.person_id} onChange={event => updateRow(index,'person_id',event.target.value)}><option value="">Selecciona una persona</option>{people.map(person=><option key={person.id} value={person.id}>{personLabel(person)}</option>)}</select></label><label>Tipo de comida<select value={assignment.food_type_id} onChange={event => updateRow(index,'food_type_id',event.target.value)}><option value="">Selecciona comida</option>{foodTypes.map(food=><option key={food.id} value={food.id}>{food.name}</option>)}</select></label><button type="button" className="row-remove" aria-label="Quitar asignación" onClick={()=>onAssignmentsChange(assignments.filter((_,rowIndex)=>rowIndex!==index))}>×</button></div>)}<button type="button" className="button" onClick={()=>onAssignmentsChange([...assignments,{person_id:'',food_type_id:''}])}>＋ Añadir asignación</button><p className="field-help">Si la persona tiene cónyuge registrado, ambos quedarán asignados a la misma comida.</p></>}</div>}</section>
+  return <section className="agape-editor"><label className="agape-toggle"><input type="checkbox" checked={enabled} onChange={event => onEnabledChange(event.target.checked)} /><span>Este evento tiene ágape</span></label>{enabled && <div className="agape-editor-content">{loading ? <p className="state">Cargando opciones del ágape…</p> : <>{assignments.map((assignment,index)=><div className="agape-assignment-row" key={index}><label>Persona<PersonAutocomplete people={people} selectedId={assignment.person_id} onSelect={value => updateRow(index,'person_id',value)} /></label><label>Tipo de comida<select value={assignment.food_type_id} onChange={event => updateRow(index,'food_type_id',event.target.value)}><option value="">Selecciona comida</option>{foodTypes.map(food=><option key={food.id} value={food.id}>{food.name}</option>)}</select></label><button type="button" className="row-remove" aria-label="Quitar asignación" onClick={()=>onAssignmentsChange(assignments.filter((_,rowIndex)=>rowIndex!==index))}>×</button></div>)}<button type="button" className="button" onClick={()=>onAssignmentsChange([...assignments,{person_id:'',food_type_id:''}])}>＋ Añadir asignación</button><p className="field-help">Si la persona tiene cónyuge registrado, ambos quedarán asignados a la misma comida.</p></>}</div>}</section>
 }
 
 function SitePassword({ onAuthenticated }) {
@@ -138,9 +153,31 @@ function SitePassword({ onAuthenticated }) {
   return <main className="content site-gate"><form className="site-gate-card" onSubmit={submit}><span className="brand-mark">C</span><p className="eyebrow">COMUNIDAD X SANTAS</p><h1>Acceso a la comunidad</h1><p>Introduce la contraseña para continuar.</p><label>Contraseña<input autoFocus type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} /></label>{error&&<p className="error">{error}</p>}<button className="button primary" disabled={busy||!password}>{busy?'Comprobando…':'Entrar'}</button></form></main>
 }
 
+const adminTableLabels = {
+  persons: 'Personas', services: 'Servicios', events: 'Eventos', groups: 'Grupos',
+  traditio: 'Traditio', words: 'Palabras', current_psalm: 'Salmo actual',
+  agape_food_types: 'Tipos de comida',
+}
+
+const adminColumnLabels = {
+  first_name: 'Nombre', last_name: 'Apellidos', birth_date: 'Fecha de nacimiento',
+  address: 'Dirección', phone: 'Teléfono', email: 'Correo electrónico',
+  spouse_id: 'Cónyuge', parent_id: 'Progenitor', sex: 'Sexo', name: 'Nombre',
+  description: 'Descripción', starts_at: 'Fecha y hora', location: 'Lugar',
+  text: 'Calle', word: 'Palabra', psalm_number: 'Número de salmo',
+  person_1_id: 'Hermano 1', person_2_id: 'Hermano 2', person_3_id: 'Hermano 3',
+}
+
+function adminLabel(value, labels = {}) {
+  if (labels[value]) return labels[value]
+  return value.replaceAll('_', ' ').replace(/\b\p{L}/gu, letter => letter.toLocaleUpperCase('es'))
+}
+
 function AdminContent({ token, onLogout }) {
-  const [tables, setTables] = useState([]), [table, setTable] = useState('persons'), [rows, setRows] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState(''), [editing, setEditing] = useState(null), [saving, setSaving] = useState(false), [serviceOptions, setServiceOptions] = useState([]), [selectedServiceId, setSelectedServiceId] = useState(''), [personServiceLinks, setPersonServiceLinks] = useState([]), [personServicesById, setPersonServicesById] = useState({}), [serviceLoading, setServiceLoading] = useState(false), [agapeEnabled, setAgapeEnabled] = useState(false), [agapeId, setAgapeId] = useState(null), [agapeAssignments, setAgapeAssignments] = useState([]), [savedAgapeAssignments, setSavedAgapeAssignments] = useState([]), [agapePeople, setAgapePeople] = useState([]), [agapeFoodTypes, setAgapeFoodTypes] = useState([]), [agapeLoading, setAgapeLoading] = useState(false)
+  const [tables, setTables] = useState([]), [table, setTable] = useState('persons'), [rows, setRows] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState(''), [editing, setEditing] = useState(null), [saving, setSaving] = useState(false), [serviceOptions, setServiceOptions] = useState([]), [selectedServiceId, setSelectedServiceId] = useState(''), [personServiceLinks, setPersonServiceLinks] = useState([]), [personServicesById, setPersonServicesById] = useState({}), [serviceLoading, setServiceLoading] = useState(false), [agapeEnabled, setAgapeEnabled] = useState(false), [agapeId, setAgapeId] = useState(null), [agapeAssignments, setAgapeAssignments] = useState([]), [savedAgapeAssignments, setSavedAgapeAssignments] = useState([]), [agapePeople, setAgapePeople] = useState([]), [agapeFoodTypes, setAgapeFoodTypes] = useState([]), [agapeLoading, setAgapeLoading] = useState(false), [peopleOptions, setPeopleOptions] = useState([]), [selectedGroupMemberIds, setSelectedGroupMemberIds] = useState([]), [groupMembersLoading, setGroupMembersLoading] = useState(false), [memberToAdd, setMemberToAdd] = useState('')
   const current = tables.find(t => t.name === table)
+  const adultPeople = useMemo(() => rows.filter(isAdultParticipant), [rows])
+  const availableGroupPeople = useMemo(() => peopleOptions.filter(person => !selectedGroupMemberIds.includes(person.id)), [peopleOptions, selectedGroupMemberIds])
   const needsServices = ['persons', 'person_services'].includes(table) && Boolean(editing)
   const serviceEditorKey = needsServices ? `${table}:${editing.key?.id || 'new'}` : ''
   const agapeEditorKey = table === 'events' && editing ? `events:${editing.key?.id || 'new'}` : ''
@@ -148,8 +185,9 @@ function AdminContent({ token, onLogout }) {
     setLoading(true); setError('')
     try {
       const [metadata, result] = await Promise.all([tables.length ? Promise.resolve(tables) : getTables(token), getRows(selected, token)])
-      if (!tables.length) setTables(metadata.filter(item => !['agapes', 'agape_assignments'].includes(item.name)))
+      if (!tables.length) setTables(metadata.filter(item => !['agapes', 'agape_assignments', 'group_members', 'person_services'].includes(item.name)))
       setRows(result.rows)
+      if (selected === 'traditio') setPeopleOptions((await getRows('persons', token)).rows.filter(isAdultParticipant).sort((a, b) => `${a.last_name || ''} ${a.first_name || ''}`.localeCompare(`${b.last_name || ''} ${b.first_name || ''}`, 'es')))
       if (selected === 'persons') {
         const [{ rows: services }, { rows: relations }] = await Promise.all([getRows('services', token), getRows('person_services', token)])
         const names = new Map(services.map(service => [service.id, service.name]))
@@ -180,6 +218,21 @@ function AdminContent({ token, onLogout }) {
     }).catch(e => { if (active) setError(e.message) }).finally(() => { if (active) setServiceLoading(false) })
     return () => { active = false }
   }, [serviceEditorKey, token])
+  const peopleEditorKey = ['groups', 'traditio'].includes(table) && editing ? `${table}:${editing.key?.id || 'new'}` : ''
+  useEffect(() => {
+    if (!peopleEditorKey) return
+    let active = true
+    setGroupMembersLoading(true)
+    Promise.all([getRows('persons', token), table === 'groups' && editing.key ? getRows('group_members', token) : Promise.resolve({ rows: [] })])
+      .then(([{ rows: people }, { rows: links }]) => {
+        if (!active) return
+        const adults = people.filter(isAdultParticipant)
+        const adultIds = new Set(adults.map(person => person.id))
+        setPeopleOptions(adults.sort((a, b) => `${a.last_name || ''} ${a.first_name || ''}`.localeCompare(`${b.last_name || ''} ${b.first_name || ''}`, 'es')))
+        setSelectedGroupMemberIds(table === 'groups' && editing.key ? links.filter(link => link.group_id === editing.key.id && adultIds.has(link.person_id)).map(link => link.person_id) : [])
+      }).catch(e => { if (active) setError(e.message) }).finally(() => { if (active) setGroupMembersLoading(false) })
+    return () => { active = false }
+  }, [peopleEditorKey, token])
   useEffect(() => {
     if (!agapeEditorKey) return
     let active = true
@@ -189,15 +242,17 @@ function AdminContent({ token, onLogout }) {
       const agape = eventId ? agapes.find(item => item.event_id === eventId) : null
       const assignments = agape ? (await getRows('agape_assignments', token)).rows.filter(item => item.agape_id === agape.id) : []
       if (!active) return
-      setAgapePeople(people)
+      const adults = people.filter(isAdultParticipant)
+      setAgapePeople(adults)
       setAgapeFoodTypes(foodTypes.sort((a,b) => a.name.localeCompare(b.name, 'es')))
       setAgapeId(agape?.id || null)
       setAgapeEnabled(Boolean(agape))
       setSavedAgapeAssignments(assignments)
-      const personById = new Map(people.map(person => [person.id, person]))
+      const personById = new Map(adults.map(person => [person.id, person]))
       const normalized = new Map()
       assignments.forEach(assignment => {
         const person = personById.get(assignment.person_id)
+        if (!person) return
         const spouse = person?.spouse_id
         const householdId = spouse ? [person.id, spouse].sort()[0] : person?.id || assignment.person_id
         const key = `${householdId}:${assignment.food_type_id}`
@@ -211,11 +266,11 @@ function AdminContent({ token, onLogout }) {
   const visibleFields = fields.filter(field => !['id', 'created_at', 'updated_at'].includes(field.name))
   const keyFor = row => Object.fromEntries((current?.primaryKey || ['id']).map(key => [key, row[key]]))
   const personLabel = id => {
-    const person = rows.find(item => item.id === id)
-    return person ? `${person.first_name || ''} ${person.last_name || ''}`.trim() : ''
+    const person = [...rows, ...peopleOptions].find(item => item.id === id)
+    return person ? personFullName(person) : ''
   }
-  const startNew = () => { setSelectedServiceId(''); setPersonServiceLinks([]); if (table === 'events') { setAgapeEnabled(false); setAgapeId(null); setAgapeAssignments([]); setSavedAgapeAssignments([]) } if (['persons', 'person_services'].includes(table)) setServiceLoading(true); setEditing({ key: null, values: Object.fromEntries(fields.filter(f => !['id', 'created_at', 'updated_at'].includes(f.name) && !f.default && !(current.primaryKey.length === 1 && current.primaryKey[0] === f.name)).map(f => [f.name, ''])) }) }
-  const startEdit = row => { setSelectedServiceId(''); setPersonServiceLinks([]); if (table === 'events') { setAgapeEnabled(false); setAgapeId(null); setAgapeAssignments([]); setSavedAgapeAssignments([]) } if (['persons', 'person_services'].includes(table)) setServiceLoading(true); setEditing({ key: keyFor(row), values: Object.fromEntries(fields.map(f => [f.name, row[f.name] ?? ''])) }) }
+  const startNew = () => { setSelectedServiceId(''); setPersonServiceLinks([]); setSelectedGroupMemberIds([]); setMemberToAdd(''); if (table === 'events') { setAgapeEnabled(false); setAgapeId(null); setAgapeAssignments([]); setSavedAgapeAssignments([]) } if (['persons', 'person_services'].includes(table)) setServiceLoading(true); setEditing({ key: null, values: Object.fromEntries(fields.filter(f => !['id', 'created_at', 'updated_at'].includes(f.name) && !f.default && !(current.primaryKey.length === 1 && current.primaryKey[0] === f.name)).map(f => [f.name, ''])) }) }
+  const startEdit = row => { setSelectedServiceId(''); setPersonServiceLinks([]); setSelectedGroupMemberIds([]); setMemberToAdd(''); if (table === 'events') { setAgapeEnabled(false); setAgapeId(null); setAgapeAssignments([]); setSavedAgapeAssignments([]) } if (['persons', 'person_services'].includes(table)) setServiceLoading(true); setEditing({ key: keyFor(row), values: Object.fromEntries(fields.map(f => [f.name, row[f.name] ?? ''])) }) }
   const saveEventAgape = async eventId => {
     if (!agapeEnabled) {
       if (agapeId) await deleteRow('agapes', { id: agapeId }, token)
@@ -249,11 +304,17 @@ function AdminContent({ token, onLogout }) {
         if (selectedServiceId && !personServiceLinks.some(relation => relation.service_id === selectedServiceId)) await insertRow('person_services', { person_id: personId, service_id: selectedServiceId }, token)
       }
       if (table === 'events') await saveEventAgape(savedRow.id)
+      if (table === 'groups') {
+        const existing = editing.key ? (await getRows('group_members', token)).rows.filter(link => link.group_id === savedRow.id) : []
+        const currentIds = new Set(existing.map(link => link.person_id)), desiredIds = new Set(selectedGroupMemberIds)
+        await Promise.all(existing.filter(link => !desiredIds.has(link.person_id)).map(link => deleteRow('group_members', { group_id: savedRow.id, person_id: link.person_id }, token)))
+        await Promise.all([...desiredIds].filter(personId => !currentIds.has(personId)).map(personId => insertRow('group_members', { group_id: savedRow.id, person_id: personId }, token)))
+      }
       setEditing(null); await load()
     } catch (e) { setError(e.message) } finally { setSaving(false) }
   }
   const remove = async row => { if (!window.confirm('¿Eliminar este registro?')) return; try { await deleteRow(table, keyFor(row), token); await load() } catch (e) { setError(e.message) } }
-  return <main className="content admin"><section className="hero admin-hero"><p className="eyebrow">BACKOFFICE</p><h1>Administración</h1><p className="intro">Consulta y gestiona los datos de la comunidad.</p></section><section className="admin-panel"><div className="admin-toolbar"><label>Tabla<select value={table} onChange={e => setTable(e.target.value)}>{tables.map(t => <option key={t.name} value={t.name}>{t.name}</option>)}</select></label><div className="admin-actions"><button className="button" onClick={onLogout}>Cerrar sesión</button><button className="button primary" onClick={startNew} disabled={!current}>＋ Nuevo registro</button></div></div>{error && <p className="error">{error}</p>}{loading ? <p className="state">Cargando…</p> : <div className="admin-table-wrap"><table className={`admin-table ${table === 'persons' ? 'persons-table' : ''}`}><thead><tr>{visibleFields.map(f => <th key={f.name}>{f.name}</th>)}{table === 'persons' && <th>Servicio</th>}<th>Acciones</th></tr></thead><tbody>{rows.map((row, i) => <tr key={JSON.stringify(keyFor(row)) || i}>{visibleFields.map(f => <td key={f.name}>{f.name === 'spouse_id' && table === 'persons' ? personLabel(row[f.name]) || '—' : String(row[f.name] ?? '—')}</td>)}{table === 'persons' && <td>{(personServicesById[row.id] || []).join(', ') || '—'}</td>}<td><div className="row-actions"><button onClick={() => startEdit(row)}>Editar</button><button className="danger" onClick={() => remove(row)}>Eliminar</button></div></td></tr>)}</tbody></table>{!rows.length && <p className="state">No hay registros en esta tabla.</p>}</div>}</section>{editing && <div className="modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setEditing(null)}><form className="modal" onSubmit={save}><div className="modal-head"><div><p className="eyebrow">{editing.key ? 'EDITAR' : 'NUEVO'}</p><h2>{table}</h2></div><button type="button" className="close" onClick={() => setEditing(null)}>×</button></div><div className="form-grid">{fields.filter(f => !['id', 'created_at', 'updated_at'].includes(f.name) && (!editing.key || !editing.key.hasOwnProperty(f.name) || (table === 'person_services' && f.name === 'service_id'))).map(f => <label key={f.name}>{f.name}{f.name === 'spouse_id' && table === 'persons' ? <select value={editing.values[f.name] ?? ''} onChange={e => setEditing(prev => ({ ...prev, values: { ...prev.values, [f.name]: e.target.value || null } }))}><option value="">Sin pareja</option>{rows.filter(person => person.id !== editing.values.id).map(person => <option key={person.id} value={person.id}>{`${person.first_name || ''} ${person.last_name || ''}`.trim()}</option>)}</select> : f.name === 'service_id' && table === 'person_services' ? <select value={editing.values[f.name] ?? ''} onChange={e => setEditing(prev => ({ ...prev, values: { ...prev.values, [f.name]: e.target.value || null } }))}><option value="">Selecciona un servicio</option>{serviceOptions.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select> : f.name === 'sex' ? <select value={formInputValue(f, editing.values[f.name])} onChange={e => { const value = e.target.value; setEditing(prev => ({ ...prev, values: { ...prev.values, [f.name]: formInputType(f) === 'datetime-local' && value ? new Date(value).toISOString() : value } })) }}><option value="">Sin indicar</option><option value="M">M</option><option value="F">F</option></select> : <input type={formInputType(f)} onClick={e => { if (['date','datetime-local'].includes(formInputType(f))) e.currentTarget.showPicker?.() }} value={formInputValue(f, editing.values[f.name])} onChange={e => { const value = e.target.value; setEditing(prev => ({ ...prev, values: { ...prev.values, [f.name]: formInputType(f) === 'datetime-local' && value ? new Date(value).toISOString() : value } })) }} placeholder={f.nullable ? 'Opcional' : 'Obligatorio'} />}</label>)}{table === 'persons' && <label>Servicio<select value={selectedServiceId} disabled={serviceLoading} onChange={e => setSelectedServiceId(e.target.value)}><option value="">Sin servicio</option>{serviceOptions.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>}{table === "events" && <AgapeEditor enabled={agapeEnabled} onEnabledChange={setAgapeEnabled} assignments={agapeAssignments} onAssignmentsChange={setAgapeAssignments} people={agapePeople} foodTypes={agapeFoodTypes} loading={agapeLoading} />}</div><div className="modal-actions"><button type="button" className="button" onClick={() => setEditing(null)}>Cancelar</button><button className="button primary" disabled={saving || (needsServices && serviceLoading) || (table === 'events' && agapeLoading)}>{saving ? 'Guardando…' : 'Guardar'}</button></div></form></div>}</main>
+  return <main className="content admin"><section className="hero admin-hero"><p className="eyebrow">BACKOFFICE</p><h1>Administración</h1><p className="intro">Consulta y gestiona los datos de la comunidad.</p></section><section className="admin-panel"><div className="admin-toolbar"><label>Tabla<select value={table} onChange={e => setTable(e.target.value)}>{tables.map(t => <option key={t.name} value={t.name}>{adminLabel(t.name, adminTableLabels)}</option>)}</select></label><div className="admin-actions"><button className="button" onClick={onLogout}>Cerrar sesión</button><button className="button primary" onClick={startNew} disabled={!current}>＋ Nuevo registro</button></div></div>{error && <p className="error">{error}</p>}{loading ? <p className="state">Cargando…</p> : <div className="admin-table-wrap"><table className={`admin-table ${table === 'persons' ? 'persons-table' : ''}`}><thead><tr>{visibleFields.map(f => <th key={f.name}>{adminLabel(f.name, adminColumnLabels)}</th>)}<th>Acciones</th></tr></thead><tbody>{rows.map((row, i) => <tr key={JSON.stringify(keyFor(row)) || i}>{visibleFields.map(f => <td key={f.name}>{table === 'traditio' && f.name.startsWith('person_') ? personLabel(row[f.name]) || '—' : f.name === 'spouse_id' && table === 'persons' ? personLabel(row[f.name]) || '—' : String(row[f.name] ?? '—')}</td>)}<td><div className="row-actions"><button onClick={() => startEdit(row)}>Editar</button><button className="danger" onClick={() => remove(row)}>Eliminar</button></div></td></tr>)}</tbody></table>{!rows.length && <p className="state">No hay registros en esta tabla.</p>}</div>}</section>{editing && <div className="modal-backdrop" onMouseDown={e => e.target === e.currentTarget && setEditing(null)}><form className="modal" onSubmit={save}><div className="modal-head"><div><p className="eyebrow">{editing.key ? 'EDITAR' : 'NUEVO'}</p><h2>{adminLabel(table, adminTableLabels)}</h2></div><button type="button" className="close" onClick={() => setEditing(null)}>×</button></div><div className="form-grid">{fields.filter(f => !['id', 'created_at', 'updated_at'].includes(f.name) && (!editing.key || !editing.key.hasOwnProperty(f.name) || (table === 'person_services' && f.name === 'service_id'))).map(f => <label key={f.name}>{adminLabel(f.name, adminColumnLabels)}{table === 'traditio' && f.name.startsWith('person_') ? <PersonAutocomplete people={peopleOptions} selectedId={editing.values[f.name]} onSelect={value => setEditing(prev => ({ ...prev, values: { ...prev.values, [f.name]: value || null } }))} /> : f.name === 'spouse_id' && table === 'persons' ? <PersonAutocomplete people={adultPeople} selectedId={editing.values[f.name]} onSelect={value => setEditing(prev => ({ ...prev, values: { ...prev.values, [f.name]: value || null } }))} placeholder="Selecciona una pareja" /> : f.name === 'sex' ? <select value={formInputValue(f, editing.values[f.name])} onChange={e => { const value = e.target.value; setEditing(prev => ({ ...prev, values: { ...prev.values, [f.name]: value } })) }}><option value="">Sin indicar</option><option value="M">M</option><option value="F">F</option></select> : <input type={formInputType(f)} onClick={e => { if (['date','datetime-local'].includes(formInputType(f))) e.currentTarget.showPicker?.() }} value={formInputValue(f, editing.values[f.name])} onChange={e => { const value = e.target.value; setEditing(prev => ({ ...prev, values: { ...prev.values, [f.name]: value } })) }} placeholder={f.nullable ? 'Opcional' : 'Obligatorio'} />}</label>)}{table === 'groups' && <section className="agape-editor"><h3>Miembros del grupo</h3>{groupMembersLoading ? <p className="state">Cargando personas…</p> : <><div className="agape-assignment-row"><label>Añadir persona<PersonAutocomplete key={selectedGroupMemberIds.length} people={availableGroupPeople} selectedId={memberToAdd} onSelect={setMemberToAdd} /></label><button type="button" className="button" disabled={!memberToAdd} onClick={() => { setSelectedGroupMemberIds(ids => [...ids, memberToAdd]); setMemberToAdd('') }}>＋ Añadir</button></div><ul>{selectedGroupMemberIds.map(id => <li key={id}>{personLabel(id)} <button type="button" className="row-remove" aria-label={`Quitar ${personLabel(id)}`} onClick={() => setSelectedGroupMemberIds(ids => ids.filter(item => item !== id))}>×</button></li>)}</ul></>}</section>}{table === 'persons' && <label>Servicio<select value={selectedServiceId} disabled={serviceLoading} onChange={e => setSelectedServiceId(e.target.value)}><option value="">Sin servicio</option>{serviceOptions.map(service => <option key={service.id} value={service.id}>{service.name}</option>)}</select></label>}{table === "events" && <AgapeEditor enabled={agapeEnabled} onEnabledChange={setAgapeEnabled} assignments={agapeAssignments} onAssignmentsChange={setAgapeAssignments} people={agapePeople} foodTypes={agapeFoodTypes} loading={agapeLoading} />}</div><div className="modal-actions"><button type="button" className="button" onClick={() => setEditing(null)}>Cancelar</button><button className="button primary" disabled={saving || (needsServices && serviceLoading) || (table === 'events' && agapeLoading) || (['groups','traditio'].includes(table) && groupMembersLoading)}>{saving ? 'Guardando…' : 'Guardar'}</button></div></form></div>}</main>
 }
 
 function Admin() {

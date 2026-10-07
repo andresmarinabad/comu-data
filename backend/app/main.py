@@ -124,7 +124,7 @@ def directory(_: None = Depends(require_site_session)):
 
 @app.get("/api/public/{table}")
 def get_public_rows(table: str, _: None = Depends(require_site_session)):
-    public_tables = {"events", "current_psalm", "groups", "traditio", "words", "agapes", "agape_assignments", "agape_food_types"}
+    public_tables = {"events", "current_psalm", "groups", "group_members", "traditio", "words", "agapes", "agape_assignments", "agape_food_types"}
     if table not in public_tables:
         raise HTTPException(status_code=404, detail="Tabla pública no encontrada")
     with connect() as conn:
