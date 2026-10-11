@@ -43,27 +43,16 @@ function Directory() {
   const birthday = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
   const address = person => person ? [person.address, [person.postal_code, person.city].filter(Boolean).join(' '), person.country].filter(Boolean).join(' ') : ''
   const mapsLink = value => value ? <a className="map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(value)}`} target="_blank" rel="noreferrer" aria-label={`Abrir ${value} en Google Maps`}>{value}</a> : ''
-  const row = (person, type = 'person') => <tr className={`directory-${type}`} key={person.id}><td data-label="Nombre">{`${person.first_name || ''} ${person.last_name || ''}`.trim()}</td></tr>
-
-  const sharedCell = (partners, key, format = value => value || '') => {
-    const values = partners.map(person => format(person?.[key], person) || '')
-    const present = values.filter(Boolean)
-    const oneSharedValue = present.length <= 1 || present.every(value => value === present[0])
-    return oneSharedValue ? { merged: true, value: present[0] || '' } : { merged: false }
-  }
-  return <main className="content"><section className="hero"><h1>Lista de la comunidad</h1></section><section className="directory"><div className="section-head"><div><p>{people.length} personas</p></div><label className="search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar persona" aria-label="Buscar persona" /></label></div>{loading ? <p className="state">Cargando personas…</p> : error ? <p className="error">{error}</p> : visibleGroups.length ? <div className="directory-table-wrap"><table className="directory-table"><thead><tr><th>Nombre y apellidos</th></tr></thead>{visibleGroups.map((group, index) => {
-    const hasPair = group.allPartners.length === 2
-    const displayingPair = group.partners.length === 2
-    const addressCell = hasPair ? sharedCell(group.allPartners, 'address', (_value, person) => address(person)) : null
-    const emailCell = hasPair ? sharedCell(group.allPartners, 'email', value => value) : null
-    return <tbody className="family-unit" key={`${group.sortName.id}-${index}`}>{group.partners.map((person, partnerIndex) => {
-      const isSecond = partnerIndex === 1
-      const common = hasPair && isSecond && displayingPair ? { omitAddress: addressCell.merged, omitEmail: emailCell.merged } : {
-        addressSpan: hasPair && displayingPair && addressCell.merged, addressValue: hasPair && addressCell.merged ? addressCell.value : undefined,
-        emailSpan: hasPair && displayingPair && emailCell.merged, emailValue: hasPair && emailCell.merged ? emailCell.value : undefined,
-      }
-      return row(person, isSecond ? 'spouse' : 'person', common)
-    })}{group.children.map(person => row(person, 'child'))}</tbody>
+  const row = (person, type = 'person') => <tr className={`directory-${type}`} key={person.id}>
+    <td data-label="Nombre">{`${person.first_name || ''} ${person.last_name || ''}`.trim()}</td>
+    <td data-label="Teléfono">{person.phone || ''}</td>
+    <td data-label="Email">{person.email || ''}</td>
+    <td data-label="Dirección">{mapsLink(address(person))}</td>
+    <td data-label="Cumpleaños">{birthday(person.birth_date)}</td>
+    <td data-label="">{(person.services || []).join(', ')}</td>
+  </tr>
+  return <main className="content"><section className="hero"><h1>Lista de la comunidad</h1></section><section className="directory"><div className="section-head"><div><p>{people.length} personas</p></div><label className="search"><span>⌕</span><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar persona" aria-label="Buscar persona" /></label></div>{loading ? <p className="state">Cargando personas…</p> : error ? <p className="error">{error}</p> : visibleGroups.length ? <div className="directory-table-wrap"><table className="directory-table"><thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Dirección</th><th>Cumpleaños</th><th aria-label="Servicio"></th></tr></thead>{visibleGroups.map((group, index) => {
+    return <tbody className="family-unit" key={`${group.sortName.id}-${index}`}>{group.partners.map((person, partnerIndex) => row(person, partnerIndex === 1 ? 'spouse' : 'person'))}{group.children.map(person => row(person, 'child'))}</tbody>
   })}</table></div> : <p className="state">No hay resultados para “{search}”.</p>}</section></main>
 }
 
