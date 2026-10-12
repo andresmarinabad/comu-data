@@ -109,3 +109,38 @@
 .site-gate-card button{justify-self:start;min-width:110px}
 @media(max-width:760px){.site-gate{min-height:calc(100vh - 190px);padding-top:20px}.site-gate-card{padding:23px}.site-gate-card h1{font-size:24px}}
 .person-autocomplete{position:relative;width:100%;min-width:0}.person-autocomplete input{width:100%;min-width:0;height:40px;border:1px solid #dedfd8;border-radius:8px;background:#fff;padding:0 10px;color:#26332e;font:inherit}.person-suggestions{position:absolute;z-index:5;top:calc(100% + 4px);left:0;right:0;max-height:220px;overflow-y:auto;border:1px solid #dedfd8;border-radius:8px;background:#fff;box-shadow:0 8px 20px #26332e1a}.person-suggestions button{display:block;width:100%;padding:9px 11px;border:0;background:#fff;text-align:left;color:#26332e;font:inherit;cursor:pointer}.person-suggestions button:hover,.person-suggestions button:focus{background:#f2f4ef;outline:0}.group-list .info-card p{margin:10px 0 0;color:#68756c;font-size:14px;line-height:1.5}
+.directory-mobile-names{display:none}
+.directory-mobile-summary{display:none}
+
+/* En móvil, cada persona se lee como ficha y no exige desplazamiento horizontal. */
+@media(max-width:760px){
+ .directory-table-wrap{overflow:visible;border:0;background:transparent}
+ .directory-table{display:grid;gap:10px;width:100%;min-width:0;white-space:normal}
+ .directory-table thead{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+ .directory-table tbody{display:block;min-width:0;margin:0 0 10px;padding:4px 13px;background:#fff;border:1px solid #e9e8e1;border-radius:11px}
+ .directory-table tr{display:block;min-width:0;padding:6px 0;background:transparent;border:0;border-radius:0}
+ .directory-table tr+tr{border-top:0}
+ .directory-table td{display:grid;grid-template-columns:82px minmax(0,1fr);gap:9px;max-width:none;padding:8px 0;font-size:12px;line-height:1.4;overflow:visible;overflow-wrap:break-word;word-break:normal;border-bottom:0}
+ .directory-table td:empty{display:none}
+ .directory-table td:last-child{border-bottom:0}
+ .directory-table td:before{content:attr(data-label);font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:#89928b;font-weight:700}
+ .directory-table td:first-child,.directory-spouse td:first-child,.directory-child td:first-child{padding-left:0}
+ .directory-spouse td:first-child:before,.directory-child td:first-child:before{content:attr(data-label);margin:0}
+ .directory-child{opacity:1;background:transparent!important}
+ .directory-table tbody.family-unit tr.directory-person td,.directory-table tbody.family-unit tr.directory-spouse td,.directory-table tbody.family-unit tr.directory-child td{background:transparent}
+ .directory-table tbody.family-unit tr.directory-child{margin-inline:0;padding-inline:0}
+ .directory-table tbody.family-unit tr:last-child td{border-bottom:0}
+ .directory-table td:nth-child(2),.directory-table td:nth-child(3),.directory-table td:nth-child(5),.directory-table td:nth-child(6){display:none}
+ .directory-table td:nth-child(1),.directory-table td:nth-child(4),.directory-table tbody.family-unit tr:first-child td,.directory-table tbody.family-unit tr:last-child td{border:0!important}
+ .directory-table tr.directory-spouse{display:none}
+ .directory-table tr.directory-person,.directory-table tr.directory-child{display:none}
+ .directory-table tr.directory-mobile-summary{display:block;padding:8px 0}
+ .directory-table tr.directory-mobile-summary td{display:block;padding:0;border:0!important}
+ .directory-table tr.directory-mobile-summary td:before{display:none}
+ .mobile-partner-names span{display:block;font-size:13px;font-weight:600;color:#35463b;line-height:1.5}
+ .mobile-household-address{margin-top:5px;font-size:12px;line-height:1.45}
+ .mobile-children-names{margin-top:8px;color:#68756c;font-size:12px;line-height:1.45}
+ .directory-mobile-names{display:block}
+ .directory-desktop-name{display:none}
+}
+@media(max-width:380px){.directory-table td{grid-template-columns:72px minmax(0,1fr);gap:7px;font-size:11px}}
