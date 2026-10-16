@@ -38,8 +38,9 @@ function Directory() {
     return households.sort((a, b) => compareName(a.sortName, b.sortName))
   }, [people])
 
-  const matchesSearch = person => Boolean(person) && `${person.first_name || ''} ${person.last_name || ''}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es'))
-  const visibleGroups = groups.map(group => ({ ...group, allPartners: group.partners, partners: group.partners.filter(matchesSearch), children: group.children.filter(matchesSearch) })).filter(group => group.partners.length || group.children.length)
+  const normalizedSearch = search.trim().toLocaleLowerCase('es')
+  const matchesSearch = person => Boolean(person) && `${person.first_name || ''} ${person.last_name || ''}`.toLocaleLowerCase('es').includes(normalizedSearch)
+  const visibleGroups = groups.filter(group => !normalizedSearch || [...group.partners, ...group.children].some(matchesSearch))
   const birthday = value => value ? new Date(`${value}T00:00:00`).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''
   const address = person => person ? [person.address, [person.postal_code, person.city].filter(Boolean).join(' '), person.country].filter(Boolean).join(' ') : ''
   const mapsLink = value => value ? <a className="map-link" href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(value)}`} target="_blank" rel="noreferrer" aria-label={`Abrir ${value} en Google Maps`}>{value}</a> : ''
@@ -139,7 +140,7 @@ function AgapeEditor({ enabled, onEnabledChange, assignments, onAssignmentsChang
 
 function SitePassword({ onAuthenticated }) {
   const [password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false)
-  const submit=async event=>{event.preventDefault();setBusy(true);setError('');try{const token=await loginSite(password);sessionStorage.setItem('comu-site-token',token);onAuthenticated(token)}catch(e){setError(e.message)}finally{setBusy(false)}}
+  const submit=async event=>{event.preventDefault();setBusy(true);setError('');try{const token=await loginSite(password);localStorage.setItem('comu-site-token',token);onAuthenticated(token)}catch(e){setError(e.message)}finally{setBusy(false)}}
   return <main className="content site-gate"><form className="site-gate-card" onSubmit={submit}><span className="brand-mark">C</span><p className="eyebrow">COMUNIDAD X SANTAS</p><h1>Acceso a la comunidad</h1><p>Introduce la contraseña para continuar.</p><label>Contraseña<input autoFocus type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)} /></label>{error&&<p className="error">{error}</p>}<button className="button primary" disabled={busy||!password}>{busy?'Comprobando…':'Entrar'}</button></form></main>
 }
 
@@ -308,14 +309,18 @@ function AdminContent({ token, onLogout }) {
 }
 
 function Admin() {
-  const [token, setToken] = useState(() => sessionStorage.getItem('comu-admin-token'))
+  const [token, setToken] = useState(() => {
+    const saved = localStorage.getItem('comu-admin-token') || sessionStorage.getItem('comu-admin-token')
+    if (saved) localStorage.setItem('comu-admin-token', saved)
+    return saved
+  })
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const logout = () => { sessionStorage.removeItem('comu-admin-token'); setToken(null) }
+  const logout = () => { localStorage.removeItem('comu-admin-token'); setToken(null) }
   const submit = async event => {
     event.preventDefault(); setBusy(true); setError('')
-    try { const session = await loginAdmin(password); sessionStorage.setItem('comu-admin-token', session); setToken(session); setPassword('') }
+    try { const session = await loginAdmin(password); localStorage.setItem('comu-admin-token', session); setToken(session); setPassword('') }
     catch (e) { setError(e.message) }
     finally { setBusy(false) }
   }
@@ -325,8 +330,8 @@ function Admin() {
 
 export default function App() {
   const location=useLocation()
-  const [siteToken,setSiteToken]=useState(()=>{const token=sessionStorage.getItem('comu-site-token');return token&&Number(token.split('.')[0])*1000>Date.now()?token:''})
-  useEffect(()=>{const expire=()=>{sessionStorage.removeItem('comu-site-token');setSiteToken('')};window.addEventListener('comu-site-session-expired',expire);return()=>window.removeEventListener('comu-site-session-expired',expire)},[])
+  const [siteToken,setSiteToken]=useState(()=>{const token=localStorage.getItem('comu-site-token')||sessionStorage.getItem('comu-site-token');if(token&&Number(token.split('.')[0])*1000>Date.now()){localStorage.setItem('comu-site-token',token);return token}return ''})
+  useEffect(()=>{const expire=()=>{localStorage.removeItem('comu-site-token');setSiteToken('')};window.addEventListener('comu-site-session-expired',expire);return()=>window.removeEventListener('comu-site-session-expired',expire)},[])
   const isAdmin=location.pathname.replace(/\/+$/,'')==='/admin'
   return <Layout>{!isAdmin&&!siteToken?<SitePassword onAuthenticated={setSiteToken}/>:<><Routes><Route path="/" element={<Home />} /><Route path="/lista" element={<Directory />} /><Route path="/eventos" element={<Events />} /><Route path="/grupos" element={<Groups />} /><Route path="/admin" element={<Admin />} /><Route path="*" element={<Home />} /></Routes>{isSupabase && <div className="config-note">Conectado a Supabase · Las operaciones de administración están protegidas por contraseña.</div>}</>}</Layout>
 }

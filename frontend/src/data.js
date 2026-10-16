@@ -17,7 +17,7 @@ async function request(path, options, token) {
   const contentType = response.headers.get('content-type') || ''
   if (!response.ok) {
     if (response.status === 401 && token && token === getSiteToken()) {
-      sessionStorage.removeItem('comu-site-token')
+      localStorage.removeItem('comu-site-token')
       window.dispatchEvent(new Event('comu-site-session-expired'))
     }
     const body = await response.text()
@@ -66,7 +66,9 @@ export async function loginSite(password) {
 }
 
 function getSiteToken() {
-  return sessionStorage.getItem('comu-site-token') || ''
+  const token = localStorage.getItem('comu-site-token') || sessionStorage.getItem('comu-site-token') || ''
+  if (token) localStorage.setItem('comu-site-token', token)
+  return token
 }
 
 async function getSiteRows(table) {
@@ -75,7 +77,7 @@ async function getSiteRows(table) {
     const response = await fetch(`/api/site/data?table=${encodeURIComponent(table)}`, { headers: { Authorization: `Bearer ${token}` } })
     const result = await response.json().catch(() => ({}))
     if (response.status === 401) {
-      sessionStorage.removeItem('comu-site-token')
+      localStorage.removeItem('comu-site-token')
       window.dispatchEvent(new Event('comu-site-session-expired'))
     }
     if (!response.ok) throw new Error(result.detail || 'No se pudieron cargar los datos')

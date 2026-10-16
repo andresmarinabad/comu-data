@@ -6,7 +6,8 @@ function signature(expires) {
 }
 
 export function issueSession() {
-  const expires = Math.floor(Date.now() / 1000) + 8 * 60 * 60
+  // Match Flask's default permanent session lifetime (31 days).
+  const expires = Math.floor(Date.now() / 1000) + 31 * 24 * 60 * 60
   return `${expires}.${signature(expires)}`
 }
 

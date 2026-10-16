@@ -144,3 +144,16 @@
  .directory-desktop-name{display:none}
 }
 @media(max-width:380px){.directory-table td{grid-template-columns:72px minmax(0,1fr);gap:7px;font-size:11px}}
+
+/* En móvil horizontal recuperamos la tabla completa; en vertical mantenemos el resumen compacto. */
+@media(max-width:900px) and (orientation:landscape) and (min-height:360px){
+ .directory-table-wrap{overflow-x:auto;border:1px solid #e9e8e1;background:#fff}
+ .directory-table{display:table;width:100%;min-width:1000px;white-space:normal}
+ .directory-table thead{display:table-header-group;position:static;width:auto;height:auto;padding:0;margin:0;overflow:visible;clip:auto;white-space:normal}
+ .directory-table tbody{display:table-row-group;margin:0;padding:0;background:#fff;border:0;border-radius:0}
+ .directory-table tr{display:table-row;padding:0;background:transparent;border:0;border-radius:0}
+ .directory-table td{display:table-cell;padding:10px 9px;font-size:12px;overflow-wrap:anywhere}
+ .directory-table td:before{display:none}
+ .directory-table tr.directory-mobile-summary{display:none}
+ .directory-table tr.directory-person,.directory-table tr.directory-spouse,.directory-table tr.directory-child{display:table-row}
+}
