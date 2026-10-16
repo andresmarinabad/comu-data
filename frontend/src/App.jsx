@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
-import { deleteRow, getDirectory, getRows, getTables, insertRow, isSupabase, loginAdmin, loginSite, updateRow } from './data.js'
+import { deleteRow, getDirectory, getRows, getTables, insertRow, loginAdmin, loginSite, updateRow } from './data.js'
 
 function Layout({ children }) {
   return <div className="shell"><header className="topbar"><Link to="/" className="brand"><span className="brand-mark">C</span><span>Comunidad<span className="brand-sub"> X Santas</span></span></Link><nav><NavLink end to="/">Inicio</NavLink><NavLink to="/lista">Lista</NavLink><NavLink to="/eventos">Eventos</NavLink><NavLink to="/grupos">Grupos</NavLink><NavLink to="/admin">Admin</NavLink></nav></header>{children}<footer>Comunidad X</footer></div>
@@ -333,5 +333,5 @@ export default function App() {
   const [siteToken,setSiteToken]=useState(()=>{const token=localStorage.getItem('comu-site-token')||sessionStorage.getItem('comu-site-token');if(token&&Number(token.split('.')[0])*1000>Date.now()){localStorage.setItem('comu-site-token',token);return token}return ''})
   useEffect(()=>{const expire=()=>{localStorage.removeItem('comu-site-token');setSiteToken('')};window.addEventListener('comu-site-session-expired',expire);return()=>window.removeEventListener('comu-site-session-expired',expire)},[])
   const isAdmin=location.pathname.replace(/\/+$/,'')==='/admin'
-  return <Layout>{!isAdmin&&!siteToken?<SitePassword onAuthenticated={setSiteToken}/>:<><Routes><Route path="/" element={<Home />} /><Route path="/lista" element={<Directory />} /><Route path="/eventos" element={<Events />} /><Route path="/grupos" element={<Groups />} /><Route path="/admin" element={<Admin />} /><Route path="*" element={<Home />} /></Routes>{isSupabase && <div className="config-note">Conectado a Supabase · Las operaciones de administración están protegidas por contraseña.</div>}</>}</Layout>
+  return <Layout>{!isAdmin&&!siteToken?<SitePassword onAuthenticated={setSiteToken}/>:<><Routes><Route path="/" element={<Home />} /><Route path="/lista" element={<Directory />} /><Route path="/eventos" element={<Events />} /><Route path="/grupos" element={<Groups />} /><Route path="/admin" element={<Admin />} /><Route path="*" element={<Home />} /></Routes></>}</Layout>
 }
