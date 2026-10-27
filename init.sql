@@ -38,7 +38,6 @@ BEGIN
     RETURN NEW;
 END;
 $$;
-
 CREATE CONSTRAINT TRIGGER persons_sync_spouse_after_insert
 AFTER INSERT ON persons
 DEFERRABLE INITIALLY DEFERRED
@@ -168,3 +167,36 @@ INSERT INTO agape_food_types (name) VALUES
     ('Café'),
 	('Menú Infantil'),
 	('Menaje');
+
+-- Access is mediated by the server routes, which use the Supabase service role
+-- only after validating the site or admin session. The public anon key must not
+-- expose these tables directly.
+ALTER TABLE persons ENABLE ROW LEVEL SECURITY;
+ALTER TABLE services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE person_services ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
+ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE traditio ENABLE ROW LEVEL SECURITY;
+ALTER TABLE words ENABLE ROW LEVEL SECURITY;
+ALTER TABLE current_psalm ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agapes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agape_food_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agape_assignments ENABLE ROW LEVEL SECURITY;
+
+-- Local PostgreSQL does not define Supabase roles, so revoke only the roles
+-- that exist in the target database. The service_role keeps its normal access.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        REVOKE ALL ON TABLE persons, services, person_services, events, groups,
+            group_members, traditio, words, current_psalm, agapes,
+            agape_food_types, agape_assignments FROM anon;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+        REVOKE ALL ON TABLE persons, services, person_services, events, groups,
+            group_members, traditio, words, current_psalm, agapes,
+            agape_food_types, agape_assignments FROM authenticated;
+    END IF;
+END;
+$$;

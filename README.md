@@ -52,9 +52,10 @@ Para una base creada antes de estas migraciones, aplica los archivos en orden:
 ```sh
 psql -d comu -U comu -f migrations/001_add_person_sex.sql
 psql -d comu -U comu -f migrations/002_sync_person_spouse.sql
+psql -d comu -U comu -f migrations/003_enable_rls.sql
 ```
 
-También se pueden ejecutar desde el editor SQL de Supabase. El campo `persons.sex` acepta `M` o `F`. La sincronización de `spouse_id` mantiene la relación de cónyuges en ambas direcciones.
+También se pueden ejecutar desde el editor SQL de Supabase. La migración 003 activa RLS y revoca el acceso directo de `anon` y `authenticated`; las rutas servidor mantienen el acceso mediante la clave de servicio tras validar la sesión. El campo `persons.sex` acepta `M` o `F`. La sincronización de `spouse_id` mantiene la relación de cónyuges en ambas direcciones.
 
 ## Supabase y Vercel
 
@@ -75,7 +76,7 @@ En este modo, elimina `VITE_API_URL`. No pongas `SUPABASE_SERVICE_ROLE_KEY` ni o
 
 Las funciones de servidor validan `SITE_PASSWORD` para emitir una sesión de lectura de 8 horas y validan `ADMIN_PASSWORD` para emitir una sesión administrativa distinta. `SITE_PASSWORD` y `ADMIN_PASSWORD` deben tener valores diferentes. Las lecturas del sitio pasan por `/api/site/data` con la sesión del sitio; las escrituras de Admin pasan por funciones protegidas y usan la clave de servicio. La clave `VITE_SUPABASE_ANON_KEY` es pública y no debe considerarse una contraseña.
 
-Para impedir que se pueda saltar la contraseña del sitio consultando Supabase directamente con la clave anónima, revisa las políticas RLS y no concedas lectura anónima a las tablas protegidas. Las lecturas de la aplicación se realizan desde la función de servidor después de validar la sesión del sitio. No concedas escritura anónima.
+`init.sql` activa RLS en todas las tablas y revoca el acceso directo de `anon` y `authenticated` cuando esos roles existen. Las lecturas y escrituras de la aplicación se realizan desde funciones servidor tras validar la sesión correspondiente; estas funciones usan `SUPABASE_SERVICE_ROLE_KEY`, que debe permanecer en el servidor y nunca en una variable `VITE_*`.
 
 ## Seguridad
 
